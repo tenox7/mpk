@@ -1,0 +1,7 @@
+MPK allows to send email attachments from Unix command line or a shell script. Unlike mpack and mmencode from metamail it allows you to encode multiple attachments in to a single mail message.
+
+You specify attachment filenames as arguments (wildcards allowed) and optionaly (with -m) provide a text message on the standard input (use the < operator to get it from a file or redirect from a pipe). A base64 encoded multipart message stream is produced to the standard output.
+
+From version 1.3 mpk allows to send SMTP email directly via local MTA. Use -t for and -s for subject. Example use:
+
+echo "See the attached pictures" | mpk -m -t foo@bar.com -s "JPEG Pictures" *.jpg 
