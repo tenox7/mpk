@@ -1,6 +1,6 @@
 /*___________________________________________
  |                                           |
- | MPK - MIME Pack - v1.2                    |
+ | MPK - MIME Pack - v1.3                    |
  | - - - - - - - - - - - - - - - - - - - - - |
  | Copyright (c) 2005 by Antoni Sawicki      |
  | http://www.tenox.tc/out#mpk               |
@@ -11,8 +11,7 @@
  |___________________________________________|
  |__________________________________________/
  |
- | This version of mpk is distributed under
- | terms and conditions of GPL.
+ | MPK is distributed under BSD license.
  |
  | Note: on some system you need to include
  | libgen by adding -lgen or an equivalent.
@@ -20,8 +19,8 @@
 */
 
 #define BOUNDARY "==mpk==mpk==mpk==mpk==mpk=="
-#define VERSION "1.2"
-
+#define SENDMAIL "/usr/sbin/sendmail -t"
+#define VERSION "1.3"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,10 +32,9 @@
 #include <sys/types.h>
 
 FILE *fi;
+FILE *fo;
 
-/*
-** base64 stuff
-*/
+// base64 stuff
 #define TRUE 1
 #define FALSE 0
 #define LINELEN 72
@@ -58,25 +56,74 @@ static void encode(void);
 
 
 int main(int argc, char **argv) {
-    int fn, bout;
+    int c, fn, bout, msg;
     char inp[1024];
+    char toa[1024];
+    char bcc[1024];
+    char sub[1024];
     struct stat fs;
 
-    if(argc<2) {
-        fprintf(stderr, "mpk version %s\n\n"
-                        "Usage: mpk [-m] filename ...\n\n"
-                        "mpk ecapsulates files in to a MIME 1.0 stream on stdout.\n"
-                        "If -m flag is specified, a 7-bit ascii text message will\n"
-                        "also be included from stdin.\n\n", VERSION);
-        exit(1);
-    }
+    if(argc<2) 
+        goto usage;
 
+    fo=stdout;
+    fn=0;
     bout=0;
+    msg=0;
+    memset(inp, '\0', sizeof(inp));
+    memset(toa, '\0', sizeof(toa));
+    memset(bcc, '\0', sizeof(bcc));
+    memset(sub, '\0', sizeof(sub));
 
-    /*
-    ** mime header
-    */
-    fprintf(stdout, 
+    opterr=0;
+    while ((c=getopt(argc, argv, "mt:b:s:")) != -1) 
+        switch(c) {
+            case 'm':
+                msg=1;
+                break;
+            case 't':
+                strncpy(toa, optarg, sizeof(toa));
+                break;
+            case 'b':
+                strncpy(bcc, optarg, sizeof(bcc));
+                break;
+            case 's':
+                strncpy(sub, optarg, sizeof(sub));
+                break;
+            case '?':
+            case 'h':
+            default:
+usage:
+                fprintf(stderr, "mpk version %s\n\n"
+                                "Usage: mpk [-m] [-t to-addr] [-b bcc-addr] [-s subject] filename ...\n\n"
+                                "By default mpk ecapsulates files in to a MIME 1.0 stream on stdout.\n"
+                                "If -t option is given a SMTP message will be sent via local MTA.\n"
+                                "If -m flag is specified, a 7-bit ascii text message will also be\n"
+                                "included from stdin. Use < to read fom a file.\n\n", VERSION);
+                exit(1);
+        }
+
+    // SMTP header if to-addr present
+    if(strlen(toa)) {
+        fo=NULL;
+        fo=popen(SENDMAIL, "w");
+        if(!fo) {
+            fprintf(stderr, "Error: -t specified but unable to fork sendmail\n");
+            exit(1);
+        }
+
+        fprintf(fo, "To: <%s>\n", toa);
+
+        if(strlen(bcc))
+            fprintf(fo, "Bcc: <%s>\n", bcc);
+    
+        if(strlen(sub))
+            fprintf(fo, "Subject: %s\n",sub);
+    }
+    
+
+    // MIME header - always
+    fprintf(fo, 
         "MIME-Version: 1.0\n"
         "Content-Type: multipart/mixed; boundary=\"%s\"\n"
         "\n"
@@ -84,64 +131,57 @@ int main(int argc, char **argv) {
         "\n",
     BOUNDARY);
 
-    /*
-    ** handle input
-    */
-    for(fn=1; fn<argc; fn++) {
+    // Text message from stdin
+    if(msg) {
+        bout=1;
+        fprintf(fo, 
+            "--%s\n"
+            "Content-Type: text/plain\n"
+            "\n",
+        BOUNDARY);
+        while(fgets(inp, 990, stdin))
+            fprintf(fo, "%s", inp);
 
-        /*
-        ** text message from stdin
-        */
-        if(strcmp("-m", argv[fn])==0) {
-            bout=1;
-            fprintf(stdout, 
-                "--%s\n"
-                "Content-Type: text/plain\n"
-                "\n",
-            BOUNDARY);
-            while(fgets(inp, 990, stdin))
-                fprintf(stdout, "%s", inp);
+        fprintf(fo, "\n");
+    } 
 
-            fprintf(stdout, "\n");
-        } 
-
-        /*
-        ** attachment files
-        */ 
-        else if(stat(argv[fn], &fs)==0 && !(fs.st_mode & S_IFDIR)) {
-            if(fi=fopen(argv[fn], "r")) {
+    // Attach files
+    for(fn=optind; fn<argc; fn++) {
+        if(strlen(argv[fn]) && stat(argv[fn], &fs)==0 && !(fs.st_mode & S_IFDIR)) {
+            fi=fopen(argv[fn], "r");
+            if(fi) {
                 bout=1;
-                fprintf(stdout, 
+                fprintf(fo, 
                     "--%s\n"
                     "Content-Type: application/octet-stream; name=\"%s\"\n"
                     "Content-Transfer-Encoding: base64\n"
                     "Content-Disposition: attachment; filename=\"%s\"\n"
                     "\n",
                 BOUNDARY, basename(argv[fn]), basename(argv[fn]));
-
+    
                 encode();
-
-                fprintf(stdout, "\n");
+    
+                putc('\n', fo);
                 fclose(fi);
             }
         }
     }
 
-    /*
-    ** last part
-    */
+    // The last part
     if(bout)
-        fprintf(stdout, 
+        fprintf(fo, 
             "--%s--\n",
         BOUNDARY);
+
+    if(msg && fo)
+        pclose(fo);
 
     return 0;
 }
 
 
-/*
-** base64.c by John Walker 
-*/
+
+// base64.c by John Walker 
 
 static int inbuf(void) {
     int             l;
@@ -170,10 +210,10 @@ static int inchar(void) {
 
 static void ochar(int c) {
     if (linelength >= LINELEN) {
-        fprintf(stdout, "\n");
+        putc('\n', fo);
         linelength = 0;
     }
-    putc(((byte) c), stdout);
+    putc(((byte) c), fo);
     linelength++;
 }
 
@@ -231,5 +271,5 @@ static void encode(void) {
             }
         }
     }
-    fprintf(stdout, "\n");
+    putc('\n', fo);
 }
