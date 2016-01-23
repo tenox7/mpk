@@ -1,12 +1,19 @@
 #!/bin/sh
 #
 # example script to send a mime message with multiple attachments
-# one would like to add to/subject options on the command line...
+# and custom SMTP headers
+#
+# note: as of mpk version 1.3 you can specify to-addr, bcc-addr 
+# and subject directly to mpk which in turn will send them to
+# the local MTA
+#
+# this script should be used only if you need to feed custom
+# headers or mta flasgs to the outbound email
 #
 
-MPK=./mpk-osx
+MPK=/usr/local/bin/mpk
 SND=/usr/sbin/sendmail
-no() { echo "ups... no $1 - exiting"; exit 1; }
+no() { echo "error: no $1"; exit 1; }
 
 # check stuff
 [ -x $MPK ] || no mpk
@@ -15,7 +22,7 @@ type date >/dev/null 2>&1 || no date
 type whoami >/dev/null 2>&1 || no whoami
 type hostname >/dev/null 2>&1 || no hostname
 
-# ask some crucial questions
+# ask for To and Subject
 echo -n "To: "
 read to
 echo -n "Subject: "
@@ -24,18 +31,18 @@ echo "Type the text part of your message, ^d to finnish."
 echo ""
 
 {
-# generate smtp header
+# generate the smtp header
 cat <<-EOH
-Date: $(date)
-From: $(whoami)@$(hostname)
+Date: `date`
+From: `whoami`@`hostname`
 To: $to
 Subject: $subject
 EOH
 
-# finaly read input and supplied files
-# if you want to skip the text input just remove cat and -m
-# you can also get text from a file using < operator
-cat | $MPK -m $*
+# finally read the input and supplied files
+# if you want to skip the text input just remove '-m'
+# you can also get the text from a file using '<' operator
+$MPK -m $*
 
-# fire and forget
+# redirect to sendmail
 } | $SND $to
