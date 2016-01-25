@@ -3,9 +3,9 @@
 # example script to send a mime message with multiple attachments
 # and custom SMTP headers
 #
-# note: as of mpk version 1.3 you can specify to-addr, bcc-addr 
+# NOTE: as of mpk version 1.3 you can specify to-addr, bcc-addr 
 # and subject directly to mpk which in turn will send them to
-# the local MTA
+# the local MTA - so this script IS NO LONGER NEEDED
 #
 # this script should be used only if you need to feed custom
 # headers or mta flasgs to the outbound email
