@@ -11,7 +11,7 @@
  |___________________________________________|
  |__________________________________________/
  |
- | MPK is distributed under BSD license.
+ | MPK is distributed under Apache 2.0 license.
  |
  | Note: on some system you need to include
  | libgen by adding -lgen or an equivalent.
