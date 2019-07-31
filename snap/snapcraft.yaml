@@ -1,0 +1,22 @@
+name: mpk
+version: 1.3
+summary: email multiple attachments from command line
+description: MPK allows to send email attachments from Unix command line or a shell script. Unlike mpack and mmencode from metamail it allows you to encode multiple attachments in to a single mail message.
+
+confinement: classic
+grade: stable
+
+parts:
+  mpk:
+    plugin: make
+    source-type: git
+    source: https://github.com/tenox7/mpk.git
+    build-packages:
+      - gcc
+      - make
+    stage-packages:
+      - default-mta
+
+apps:
+  mpk:
+    command: usr/local/bin/mpk
