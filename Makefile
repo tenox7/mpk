@@ -7,7 +7,7 @@ LDLIBS +=
 
 all: mpk
 
-install: mpk mpk.1
+install: mpk 
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -m755 mpk   $(DESTDIR)$(PREFIX)/bin
 
